@@ -41,7 +41,8 @@
   }
 
   .section-label {
-    @apply text-xs font-semibold tracking-widest uppercase text-neutral-500 mb-4;
+    @apply text-xs font-semibold tracking-widest uppercase mb-4;
+    color: #eeeeee;
   }
 
   .btn-primary {
@@ -49,7 +50,8 @@
   }
 
   .btn-ghost {
-    @apply text-neutral-500 text-xs font-medium px-2 py-1 rounded hover:bg-white/5 hover:text-neutral-300 transition-colors cursor-pointer;
+    @apply text-xs font-medium px-2 py-1 rounded hover:bg-white/5 transition-colors cursor-pointer;
+    color: #d3d3d3;
   }
 
   .input-base {
