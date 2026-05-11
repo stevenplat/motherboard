@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { lsGet, lsSet, uid } from '../../lib/storage'
+import { useState, useEffect, useRef } from 'react'
+import { supabase } from '../../lib/supabase'
 import type { JournalEntry } from '../../types'
 import { format } from 'date-fns'
 
@@ -7,27 +7,32 @@ const TODAY = format(new Date(), 'yyyy-MM-dd')
 const MOODS = ['😔', '😐', '🙂', '😊', '🔥'] as const
 
 export default function JournalSection() {
-  const [entries, setEntries] = useState<JournalEntry[]>(() => lsGet<JournalEntry[]>('journal', []))
+  const [entries, setEntries] = useState<JournalEntry[]>([])
   const [content, setContent] = useState('')
   const [mood, setMood] = useState<1 | 2 | 3 | 4 | 5 | undefined>()
   const [viewing, setViewing] = useState<string | null>(null)
-
-  const todayEntry = entries.find(e => e.date === TODAY)
+  const todayIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (todayEntry) {
-      setContent(todayEntry.content)
-      setMood(todayEntry.mood)
-    }
+    supabase.from('journal_entries').select('*').order('date', { ascending: false })
+      .then(({ data }) => {
+        if (data) {
+          setEntries(data as JournalEntry[])
+          const today = data.find((e: JournalEntry) => e.date === TODAY)
+          if (today) { setContent(today.content); setMood(today.mood); todayIdRef.current = today.id }
+        }
+      })
   }, [])
 
-  function save() {
+  async function save() {
     if (!content.trim()) return
-    const updated = todayEntry
-      ? entries.map(e => e.date === TODAY ? { ...e, content, mood } : e)
-      : [{ id: uid(), date: TODAY, content, mood }, ...entries]
-    lsSet('journal', updated)
-    setEntries(updated)
+    if (todayIdRef.current) {
+      await supabase.from('journal_entries').update({ content, mood: mood ?? null }).eq('id', todayIdRef.current)
+      setEntries(prev => prev.map(e => e.id === todayIdRef.current ? { ...e, content, mood } : e))
+    } else {
+      const { data } = await supabase.from('journal_entries').insert({ date: TODAY, content, mood: mood ?? null }).select().single()
+      if (data) { setEntries(prev => [data as JournalEntry, ...prev]); todayIdRef.current = data.id }
+    }
   }
 
   const recent = entries.slice(0, 3)

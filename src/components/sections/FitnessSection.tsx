@@ -1,36 +1,37 @@
-import { useState } from 'react'
-import { lsGet, lsSet, uid } from '../../lib/storage'
+import { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase'
 import type { FitnessLog } from '../../types'
 import { format, subDays } from 'date-fns'
 
 const TODAY = format(new Date(), 'yyyy-MM-dd')
 
 export default function FitnessSection() {
-  const [logs, setLogs] = useState<FitnessLog[]>(() => lsGet<FitnessLog[]>('fitness', []))
+  const [logs, setLogs] = useState<FitnessLog[]>([])
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ workout_type: '', duration_min: '45', notes: '', calories: '' })
 
-  function save(updated: FitnessLog[]) {
-    lsSet('fitness', updated)
-    setLogs(updated)
-  }
+  useEffect(() => {
+    supabase.from('fitness_logs').select('*').order('created_at', { ascending: false })
+      .then(({ data }) => { if (data) setLogs(data as FitnessLog[]) })
+  }, [])
 
-  function addLog() {
+  async function addLog() {
     if (!form.workout_type.trim()) return
-    save([{
-      id: uid(),
+    const { data } = await supabase.from('fitness_logs').insert({
       date: TODAY,
       workout_type: form.workout_type.trim(),
       duration_min: parseInt(form.duration_min) || 0,
-      notes: form.notes.trim() || undefined,
-      calories: form.calories ? parseInt(form.calories) : undefined,
-    }, ...logs])
+      notes: form.notes.trim() || null,
+      calories: form.calories ? parseInt(form.calories) : null,
+    }).select().single()
+    if (data) setLogs(prev => [data as FitnessLog, ...prev])
     setForm({ workout_type: '', duration_min: '45', notes: '', calories: '' })
     setAdding(false)
   }
 
-  function remove(id: string) {
-    save(logs.filter(l => l.id !== id))
+  async function remove(id: string) {
+    await supabase.from('fitness_logs').delete().eq('id', id)
+    setLogs(prev => prev.filter(l => l.id !== id))
   }
 
   const recent = logs.slice(0, 5)

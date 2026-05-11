@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { lsGet, lsSet, uid } from '../../lib/storage'
+import { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase'
 import type { Task } from '../../types'
 
 const PRIORITIES = ['high', 'medium', 'low'] as const
@@ -10,36 +10,35 @@ const PRIORITY_COLOR: Record<Task['priority'], string> = {
 }
 
 export default function TasksSection() {
-  const [tasks, setTasks] = useState<Task[]>(() => lsGet<Task[]>('tasks', []))
+  const [tasks, setTasks] = useState<Task[]>([])
   const [input, setInput] = useState('')
   const [priority, setPriority] = useState<Task['priority']>('medium')
   const [adding, setAdding] = useState(false)
   const [filter, setFilter] = useState<'active' | 'done'>('active')
 
-  function save(updated: Task[]) {
-    lsSet('tasks', updated)
-    setTasks(updated)
-  }
+  useEffect(() => {
+    supabase.from('tasks').select('*').order('created_at', { ascending: false })
+      .then(({ data }) => { if (data) setTasks(data as Task[]) })
+  }, [])
 
-  function addTask() {
+  async function addTask() {
     if (!input.trim()) return
-    save([{
-      id: uid(),
-      title: input.trim(),
-      completed: false,
-      priority,
-      created_at: new Date().toISOString(),
-    }, ...tasks])
+    const { data } = await supabase.from('tasks').insert({ title: input.trim(), completed: false, priority }).select().single()
+    if (data) setTasks(prev => [data as Task, ...prev])
     setInput('')
     setAdding(false)
   }
 
-  function toggle(id: string) {
-    save(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t))
+  async function toggle(id: string) {
+    const task = tasks.find(t => t.id === id)
+    if (!task) return
+    await supabase.from('tasks').update({ completed: !task.completed }).eq('id', id)
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t))
   }
 
-  function remove(id: string) {
-    save(tasks.filter(t => t.id !== id))
+  async function remove(id: string) {
+    await supabase.from('tasks').delete().eq('id', id)
+    setTasks(prev => prev.filter(t => t.id !== id))
   }
 
   const visible = tasks

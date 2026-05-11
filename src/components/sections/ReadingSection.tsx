@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { lsGet, lsSet, uid } from '../../lib/storage'
+import { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase'
 import type { ReadingItem } from '../../types'
 
 const TYPES = ['book', 'article', 'course', 'podcast'] as const
@@ -12,41 +12,42 @@ const STATUS_LABEL: Record<ReadingItem['status'], string> = {
 }
 
 export default function ReadingSection() {
-  const [items, setItems] = useState<ReadingItem[]>(() => lsGet<ReadingItem[]>('reading', []))
+  const [items, setItems] = useState<ReadingItem[]>([])
   const [adding, setAdding] = useState(false)
   const [filter, setFilter] = useState<ReadingItem['status']>('in_progress')
   const [form, setForm] = useState({ title: '', author: '', type: 'book' as ReadingItem['type'], url: '' })
 
-  function save(updated: ReadingItem[]) {
-    lsSet('reading', updated)
-    setItems(updated)
-  }
+  useEffect(() => {
+    supabase.from('reading_items').select('*').order('created_at')
+      .then(({ data }) => { if (data) setItems(data as ReadingItem[]) })
+  }, [])
 
-  function addItem() {
+  async function addItem() {
     if (!form.title.trim()) return
-    save([...items, {
-      id: uid(),
+    const { data } = await supabase.from('reading_items').insert({
       title: form.title.trim(),
-      author: form.author.trim() || undefined,
+      author: form.author.trim() || null,
       type: form.type,
       status: 'queue',
-      url: form.url.trim() || undefined,
-    }])
+      url: form.url.trim() || null,
+    }).select().single()
+    if (data) setItems(prev => [...prev, data as ReadingItem])
     setForm({ title: '', author: '', type: 'book', url: '' })
     setAdding(false)
   }
 
-  function cycle(id: string) {
-    save(items.map(item => {
-      if (item.id !== id) return item
-      const order: ReadingItem['status'][] = ['queue', 'in_progress', 'done']
-      const next = order[(order.indexOf(item.status) + 1) % order.length]
-      return { ...item, status: next }
-    }))
+  async function cycle(id: string) {
+    const item = items.find(i => i.id === id)
+    if (!item) return
+    const order: ReadingItem['status'][] = ['queue', 'in_progress', 'done']
+    const next = order[(order.indexOf(item.status) + 1) % order.length]
+    await supabase.from('reading_items').update({ status: next }).eq('id', id)
+    setItems(prev => prev.map(i => i.id === id ? { ...i, status: next } : i))
   }
 
-  function remove(id: string) {
-    save(items.filter(i => i.id !== id))
+  async function remove(id: string) {
+    await supabase.from('reading_items').delete().eq('id', id)
+    setItems(prev => prev.filter(i => i.id !== id))
   }
 
   const visible = items.filter(i => i.status === filter)

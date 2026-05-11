@@ -1,48 +1,45 @@
-import { useState } from 'react'
-import { lsGet, lsSet, uid } from '../../lib/storage'
+import { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase'
 import type { FocusTask } from '../../types'
 import { format } from 'date-fns'
 
 const TODAY = format(new Date(), 'yyyy-MM-dd')
 
-function getTodayTasks(): FocusTask[] {
-  const all = lsGet<FocusTask[]>('focus_tasks', [])
-  return all.filter(t => t.date === TODAY)
-}
-
 export default function FocusSection() {
-  const [tasks, setTasks] = useState<FocusTask[]>(getTodayTasks)
+  const [tasks, setTasks] = useState<FocusTask[]>([])
   const [input, setInput] = useState('')
   const [minutes, setMinutes] = useState('30')
   const [adding, setAdding] = useState(false)
 
-  function save(updated: FocusTask[]) {
-    const all = lsGet<FocusTask[]>('focus_tasks', []).filter(t => t.date !== TODAY)
-    lsSet('focus_tasks', [...all, ...updated])
-    setTasks(updated)
-  }
+  useEffect(() => {
+    supabase.from('focus_tasks').select('*').eq('date', TODAY).order('created_at')
+      .then(({ data }) => { if (data) setTasks(data as FocusTask[]) })
+  }, [])
 
-  function addTask() {
+  async function addTask() {
     if (!input.trim()) return
-    const next = [...tasks, {
-      id: uid(),
+    const { data } = await supabase.from('focus_tasks').insert({
       title: input.trim(),
       estimated_min: parseInt(minutes) || 30,
       done: false,
       date: TODAY,
-    }]
-    save(next)
+    }).select().single()
+    if (data) setTasks(prev => [...prev, data as FocusTask])
     setInput('')
     setMinutes('30')
     setAdding(false)
   }
 
-  function toggle(id: string) {
-    save(tasks.map(t => t.id === id ? { ...t, done: !t.done } : t))
+  async function toggle(id: string) {
+    const task = tasks.find(t => t.id === id)
+    if (!task) return
+    await supabase.from('focus_tasks').update({ done: !task.done }).eq('id', id)
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
   }
 
-  function remove(id: string) {
-    save(tasks.filter(t => t.id !== id))
+  async function remove(id: string) {
+    await supabase.from('focus_tasks').delete().eq('id', id)
+    setTasks(prev => prev.filter(t => t.id !== id))
   }
 
   const done = tasks.filter(t => t.done).length

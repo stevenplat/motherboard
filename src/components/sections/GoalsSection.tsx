@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { lsGet, lsSet, uid } from '../../lib/storage'
+import { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase'
 import type { Goal } from '../../types'
 
 const CATEGORIES = ['health', 'career', 'personal', 'finance', 'learning'] as const
@@ -12,29 +12,38 @@ const CAT_COLOR: Record<Goal['category'], string> = {
 }
 
 export default function GoalsSection() {
-  const [goals, setGoals] = useState<Goal[]>(() => lsGet<Goal[]>('goals', []))
+  const [goals, setGoals] = useState<Goal[]>([])
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [form, setForm] = useState({ title: '', category: 'personal' as Goal['category'], progress: 0, target_date: '', notes: '' })
 
-  function save(updated: Goal[]) {
-    lsSet('goals', updated)
-    setGoals(updated)
-  }
+  useEffect(() => {
+    supabase.from('goals').select('*').order('created_at')
+      .then(({ data }) => { if (data) setGoals(data as Goal[]) })
+  }, [])
 
-  function addGoal() {
+  async function addGoal() {
     if (!form.title.trim()) return
-    save([...goals, { id: uid(), ...form, progress: Number(form.progress) }])
+    const { data } = await supabase.from('goals').insert({
+      title: form.title.trim(),
+      category: form.category,
+      progress: Number(form.progress),
+      target_date: form.target_date || null,
+      notes: form.notes || null,
+    }).select().single()
+    if (data) setGoals(prev => [...prev, data as Goal])
     setForm({ title: '', category: 'personal', progress: 0, target_date: '', notes: '' })
     setAdding(false)
   }
 
-  function updateProgress(id: string, progress: number) {
-    save(goals.map(g => g.id === id ? { ...g, progress } : g))
+  async function updateProgress(id: string, progress: number) {
+    await supabase.from('goals').update({ progress }).eq('id', id)
+    setGoals(prev => prev.map(g => g.id === id ? { ...g, progress } : g))
   }
 
-  function remove(id: string) {
-    save(goals.filter(g => g.id !== id))
+  async function remove(id: string) {
+    await supabase.from('goals').delete().eq('id', id)
+    setGoals(prev => prev.filter(g => g.id !== id))
   }
 
   return (

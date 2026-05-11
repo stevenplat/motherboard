@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { lsGet, lsSet, uid } from '../../lib/storage'
+import { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase'
 import type { Habit } from '../../types'
 import { format, subDays } from 'date-fns'
 
@@ -8,50 +8,61 @@ const LAST_7 = Array.from({ length: 7 }, (_, i) =>
   format(subDays(new Date(), 6 - i), 'yyyy-MM-dd')
 )
 
+function calcStreak(completions: string[]): number {
+  let s = 0
+  let d = new Date()
+  while (true) {
+    const key = format(d, 'yyyy-MM-dd')
+    if (completions.includes(key)) { s++; d = subDays(d, 1) } else break
+  }
+  return s
+}
+
 export default function HabitsSection() {
-  const [habits, setHabits] = useState<Habit[]>(() => lsGet<Habit[]>('habits', []))
+  const [habits, setHabits] = useState<Habit[]>([])
   const [newName, setNewName] = useState('')
   const [adding, setAdding] = useState(false)
 
-  function save(updated: Habit[]) {
-    lsSet('habits', updated)
-    setHabits(updated)
-  }
-
-  function toggle(id: string) {
-    save(habits.map(h => {
-      if (h.id !== id) return h
-      const done = h.completions.includes(TODAY)
-      const completions = done
-        ? h.completions.filter(d => d !== TODAY)
-        : [...h.completions, TODAY]
-      const streak = calcStreak(completions)
-      return { ...h, completions, streak }
-    }))
-  }
-
-  function calcStreak(completions: string[]): number {
-    let s = 0
-    let d = new Date()
-    while (true) {
-      const key = format(d, 'yyyy-MM-dd')
-      if (completions.includes(key)) {
-        s++
-        d = subDays(d, 1)
-      } else break
+  useEffect(() => {
+    async function load() {
+      const [{ data: hData }, { data: cData }] = await Promise.all([
+        supabase.from('habits').select('*').order('created_at'),
+        supabase.from('habit_completions').select('*'),
+      ])
+      if (hData && cData) {
+        setHabits(hData.map(h => {
+          const completions = cData.filter(c => c.habit_id === h.id).map(c => c.date as string)
+          return { id: h.id, name: h.name, completions, streak: calcStreak(completions) }
+        }))
+      }
     }
-    return s
+    load()
+  }, [])
+
+  async function toggle(id: string) {
+    const habit = habits.find(h => h.id === id)
+    if (!habit) return
+    const done = habit.completions.includes(TODAY)
+    if (done) {
+      await supabase.from('habit_completions').delete().eq('habit_id', id).eq('date', TODAY)
+    } else {
+      await supabase.from('habit_completions').insert({ habit_id: id, date: TODAY })
+    }
+    const completions = done ? habit.completions.filter(d => d !== TODAY) : [...habit.completions, TODAY]
+    setHabits(prev => prev.map(h => h.id === id ? { ...h, completions, streak: calcStreak(completions) } : h))
   }
 
-  function addHabit() {
+  async function addHabit() {
     if (!newName.trim()) return
-    save([...habits, { id: uid(), name: newName.trim(), streak: 0, completions: [] }])
+    const { data } = await supabase.from('habits').insert({ name: newName.trim() }).select().single()
+    if (data) setHabits(prev => [...prev, { id: data.id, name: data.name, completions: [], streak: 0 }])
     setNewName('')
     setAdding(false)
   }
 
-  function remove(id: string) {
-    save(habits.filter(h => h.id !== id))
+  async function remove(id: string) {
+    await supabase.from('habits').delete().eq('id', id)
+    setHabits(prev => prev.filter(h => h.id !== id))
   }
 
   const todayCount = habits.filter(h => h.completions.includes(TODAY)).length

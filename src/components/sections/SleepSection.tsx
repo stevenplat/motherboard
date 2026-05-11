@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { lsGet, lsSet, uid } from '../../lib/storage'
+import { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase'
 import type { SleepLog } from '../../types'
 import { format, subDays, differenceInMinutes, parse } from 'date-fns'
 
@@ -18,24 +18,25 @@ function calcDuration(bedtime: string, wake: string): string {
 }
 
 export default function SleepSection() {
-  const [logs, setLogs] = useState<SleepLog[]>(() => lsGet<SleepLog[]>('sleep', []))
+  const [logs, setLogs] = useState<SleepLog[]>([])
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ bedtime: '23:00', wake_time: '07:00', quality: 3 as SleepLog['quality'], notes: '' })
 
-  function save(updated: SleepLog[]) {
-    lsSet('sleep', updated)
-    setLogs(updated)
-  }
+  useEffect(() => {
+    supabase.from('sleep_logs').select('*').order('date', { ascending: false })
+      .then(({ data }) => { if (data) setLogs(data as SleepLog[]) })
+  }, [])
 
-  function addLog() {
-    save([{
-      id: uid(),
-      date: TODAY,
-      bedtime: form.bedtime,
-      wake_time: form.wake_time,
-      quality: form.quality,
-      notes: form.notes || undefined,
-    }, ...logs.filter(l => l.date !== TODAY)])
+  async function addLog() {
+    const todayLog = logs.find(l => l.date === TODAY)
+    const payload = { date: TODAY, bedtime: form.bedtime, wake_time: form.wake_time, quality: form.quality, notes: form.notes || null }
+    if (todayLog) {
+      await supabase.from('sleep_logs').update(payload).eq('id', todayLog.id)
+      setLogs(prev => prev.map(l => l.id === todayLog.id ? { ...todayLog, ...payload } as SleepLog : l))
+    } else {
+      const { data } = await supabase.from('sleep_logs').insert(payload).select().single()
+      if (data) setLogs(prev => [data as SleepLog, ...prev])
+    }
     setAdding(false)
   }
 
