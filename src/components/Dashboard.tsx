@@ -8,6 +8,7 @@ import FitnessSection from './sections/FitnessSection'
 import JournalSection from './sections/JournalSection'
 import SleepSection from './sections/SleepSection'
 import ReadingSection from './sections/ReadingSection'
+import HealthSection from './sections/HealthSection'
 
 interface Props {
   onLock: () => void
@@ -79,6 +80,11 @@ export default function Dashboard({ onLock }: Props) {
         {/* Reading */}
         <div>
           <ReadingSection />
+        </div>
+
+        {/* Health — spans full width */}
+        <div className="xl:col-span-3 md:col-span-2">
+          <HealthSection />
         </div>
       </main>
 

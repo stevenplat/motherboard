@@ -67,6 +67,17 @@ export interface FinanceEntry {
   description?: string
 }
 
+export interface HealthEntry {
+  id: string
+  date: string
+  weight_lbs: number | null
+  body_fat_pct: number | null
+  lean_mass_lbs: number | null
+  source: string
+}
+
+export type HealthMetricKey = 'weight_lbs' | 'body_fat_pct' | 'lean_mass_lbs'
+
 export interface FocusTask {
   id: string
   title: string

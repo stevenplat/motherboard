@@ -91,6 +91,17 @@ create table if not exists reading_items (
   created_at timestamptz default now()
 );
 
+-- Health metrics (Apple Health / manual)
+create table if not exists health_metrics (
+  id uuid primary key default gen_random_uuid(),
+  date date not null unique,
+  weight_lbs numeric,
+  body_fat_pct numeric,
+  lean_mass_lbs numeric,
+  source text default 'manual',
+  created_at timestamptz default now()
+);
+
 -- Row Level Security (enable for all tables)
 alter table tasks enable row level security;
 alter table habits enable row level security;
@@ -101,6 +112,7 @@ alter table focus_tasks enable row level security;
 alter table journal_entries enable row level security;
 alter table sleep_logs enable row level security;
 alter table reading_items enable row level security;
+alter table health_metrics enable row level security;
 
 -- Policies: allow all for authenticated users (single-user dashboard)
 create policy "allow_all" on tasks for all using (true) with check (true);
@@ -112,3 +124,4 @@ create policy "allow_all" on focus_tasks for all using (true) with check (true);
 create policy "allow_all" on journal_entries for all using (true) with check (true);
 create policy "allow_all" on sleep_logs for all using (true) with check (true);
 create policy "allow_all" on reading_items for all using (true) with check (true);
+create policy "allow_all" on health_metrics for all using (true) with check (true);
