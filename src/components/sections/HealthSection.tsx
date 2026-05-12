@@ -276,7 +276,7 @@ export default function HealthSection() {
         <p className="text-sm text-neutral-600 py-2">No health data yet. Log an entry or connect Apple Health.</p>
       )}
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {METRICS.map(({ key, label, unit }) => {
           const val = latest(key)
           const d = delta(key)

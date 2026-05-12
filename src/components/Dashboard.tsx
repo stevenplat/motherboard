@@ -21,7 +21,7 @@ export default function Dashboard({ onLock }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f] p-6 lg:p-8">
+    <div className="min-h-screen bg-[#0f0f0f] p-3 md:p-6 lg:p-8 overflow-x-hidden">
       {/* Header */}
       <header className="flex items-center justify-between mb-8 max-w-7xl mx-auto">
         <div>
@@ -32,12 +32,21 @@ export default function Dashboard({ onLock }: Props) {
             {format(new Date(), 'EEEE, MMMM d, yyyy')}
           </p>
         </div>
-        <button
-          onClick={handleLock}
-          className="btn-ghost text-xs tracking-widest uppercase"
-        >
-          Lock
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => window.location.reload()}
+            className="btn-ghost text-xs tracking-widest uppercase"
+            title="Refresh"
+          >
+            ↻
+          </button>
+          <button
+            onClick={handleLock}
+            className="btn-ghost text-xs tracking-widest uppercase"
+          >
+            Lock
+          </button>
+        </div>
       </header>
 
       {/* Grid */}
